@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
@@ -24,25 +24,30 @@ export class ReservationsController {
         return this.reservationsService.findAll();
     }
 
+    @Get('my-reservations')
+    findMyReservations(@Req() req) {
+        return this.reservationsService.findUserReservations(req.user.id);
+    }
+
     @Get(':id')
-    findOne(@Param('id') id: string) {
-        return this.reservationsService.findOne(+id);
+    findOne(@Param('id', ParseIntPipe) id: number) {
+        return this.reservationsService.findOne(id);
     }
 
     @Patch(':id')
     @UseGuards(RolesGuard)
     @Roles(UserRole.ADMIN)
-    update(@Param('id') id: string, @Body() updateReservationDto: UpdateReservationDto) {
-        return this.reservationsService.update(+id, updateReservationDto);
+    update(@Param('id', ParseIntPipe) id: number, @Body() updateReservationDto: UpdateReservationDto) {
+        return this.reservationsService.update(id, updateReservationDto);
     }
 
     @Delete(':id')
-    remove(@Req() req, @Param('id') id: string) {
-        return this.reservationsService.remove(req.user.id, +id);
+    remove(@Req() req, @Param('id', ParseIntPipe) id: number) {
+        return this.reservationsService.remove(req.user.id, id);
     }
 
     @Get('seat-map/:showtimeId')
-    getShowtimeSeatMap(@Param('showtimeId') showtimeId: string) {
-        return this.reservationsService.getShowtimeSeatMap(+showtimeId);
+    getShowtimeSeatMap(@Param('showtimeId', ParseIntPipe) showtimeId: number) {
+        return this.reservationsService.getShowtimeSeatMap(showtimeId);
     }
 }

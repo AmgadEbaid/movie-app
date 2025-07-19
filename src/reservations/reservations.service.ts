@@ -25,7 +25,7 @@ export class ReservationsService {
         private screenRepository: Repository<Screen>,
     ) {}
 
-    async create(userId: number, createReservationDto: CreateReservationDto): Promise<Reservation> {
+    async create(userId: string, createReservationDto: CreateReservationDto): Promise<Reservation> {
         const { showtimeId, seats } = createReservationDto;
 
         const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -106,7 +106,7 @@ export class ReservationsService {
     }
 
 
-    async remove(userId: number, id: number): Promise<void> {
+    async remove(userId: string, id: number): Promise<void> {
         const reservation = await this.findOne(id);
 
         if (reservation.user.id !== userId) {
@@ -126,6 +126,13 @@ export class ReservationsService {
 
         // Then remove the reservation
         await this.reservationRepository.remove(reservation);
+    }
+
+    async findUserReservations(userId: string): Promise<Reservation[]> {
+        return this.reservationRepository.find({
+            where: { user: { id: userId } },
+            relations: ['user', 'showtime', 'seats', 'showtime.movie', 'showtime.screen'],
+        });
     }
 
     async getShowtimeSeatMap(showtimeId: number): Promise<ShowtimeSeatMapDto> {

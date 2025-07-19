@@ -6,7 +6,7 @@ import { User } from '../../entities/user.entity';
 
 interface JwtPayload {
   email: string;
-  sub: number;
+  sub: string;
 }
 
 @Injectable()
