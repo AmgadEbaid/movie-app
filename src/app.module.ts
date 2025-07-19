@@ -8,10 +8,14 @@ import { Movie } from '../entities/movie.entity';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { MoviesModule } from './movies/movies.module';
-import { ScreensModule } from './screens/screens.module';
 import { ShowtimesModule } from './showtimes/showtimes.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { SeatsModule } from './seats/seats.module';
+import { Reservation } from 'entities/reservation.entity';
+import { Showtime } from 'entities/showtime.entity';
+import { Seat } from 'entities/seat.entity';
+import { ScreensModule } from './screens/screens.module';
+import { Screen } from 'entities/screen.entity';
 
 
 @Module({
@@ -28,7 +32,7 @@ import { SeatsModule } from './seats/seats.module';
         username: configService.get<string>('databasename'),
         password: configService.get<string>('PASSWORD'),
         database: configService.get<string>('DATABASE'),
-        entities: [User, Movie],
+        entities: [User, Movie,Reservation,Screen, Showtime,Seat],
         synchronize: true,
       }),
       inject: [ConfigService],

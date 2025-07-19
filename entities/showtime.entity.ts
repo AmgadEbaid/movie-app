@@ -18,6 +18,9 @@ export class Showtime {
     @Column("timestamp")
     startTime: Date;
 
+    @Column("timestamp")
+    endTime: Date;
+
     @OneToMany(() => Reservation, reservation => reservation.showtime, { cascade: true })
     reservations: Reservation[]; // A showtime can have many reservations
 }

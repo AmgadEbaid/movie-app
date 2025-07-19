@@ -27,8 +27,6 @@ export class Reservation {
     })
     status: string;
 
-    @Column({ type: "decimal", precision: 10, scale: 2 })
-    totalAmount: number;
 
     @CreateDateColumn()
     createdAt: Date;
