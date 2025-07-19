@@ -74,7 +74,7 @@ export class ScreensService {
         };
     }
 
-    async findOne(id: number): Promise<Screen> {
+    async findOne(id: string): Promise<Screen> {
         const screen = await this.screenRepository.findOne({ 
             where: { id },
             relations: ['showtimes']
@@ -86,13 +86,13 @@ export class ScreensService {
         return screen;
     }
 
-    async update(id: number, updateScreenDto: UpdateScreenDto): Promise<Screen> {
+    async update(id: string, updateScreenDto: UpdateScreenDto): Promise<Screen> {
         const screen = await this.findOne(id);
         Object.assign(screen, updateScreenDto);
         return await this.screenRepository.save(screen);
     }
 
-    async remove(id: number): Promise<void> {
+    async remove(id: string): Promise<void> {
         const screen = await this.findOne(id);
         await this.screenRepository.remove(screen);
     }

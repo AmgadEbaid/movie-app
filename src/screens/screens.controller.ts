@@ -26,18 +26,18 @@ export class ScreensController {
 
     @Get(':id')
     findOne(@Param('id') id: string) {
-        return this.screensService.findOne(+id);
+        return this.screensService.findOne(id);
     }
 
     @Patch(':id')
     @Roles(UserRole.ADMIN)
     update(@Param('id') id: string, @Body() updateScreenDto: UpdateScreenDto) {
-        return this.screensService.update(+id, updateScreenDto);
+        return this.screensService.update(id, updateScreenDto);
     }
 
     @Delete(':id')
     @Roles(UserRole.ADMIN)
     remove(@Param('id') id: string) {
-        return this.screensService.remove(+id);
+        return this.screensService.remove(id);
     }
 }
