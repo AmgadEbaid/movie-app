@@ -16,6 +16,11 @@ export class UpdateMovieDto {
   @Max(2100)
   releaseYear?: number;
 
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  duration?: number;
+
   @IsEnum(['G', 'PG', 'PG-13', 'R', 'NC-17'])
   @IsOptional()
   rating?: string;

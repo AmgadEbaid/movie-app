@@ -23,6 +23,9 @@ export class Movie {
     @Column("int")
     releaseYear: number;
 
+ @Column({ type: 'integer', comment: 'Duration in minutes' })
+  duration: number;    
+
     @Column({
         type: "enum",
         enum: ["G", "PG", "PG-13", "R", "NC-17"],

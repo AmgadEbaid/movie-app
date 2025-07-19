@@ -15,6 +15,10 @@ export class CreateMovieDto {
   @Max(2100)
   releaseYear: number;
 
+  @IsInt()
+  @Min(1)
+  duration: number;
+
   @IsEnum(['G', 'PG', 'PG-13', 'R', 'NC-17'])
   rating: string;
 

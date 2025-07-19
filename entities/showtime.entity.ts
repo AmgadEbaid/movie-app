@@ -21,6 +21,9 @@ export class Showtime {
     @Column("timestamp")
     endTime: Date;
 
+    @Column("decimal", { precision: 5, scale: 2 })
+    price: number; // Price of the showtime
+
     @OneToMany(() => Reservation, reservation => reservation.showtime, { cascade: true })
     reservations: Reservation[]; // A showtime can have many reservations
 }
