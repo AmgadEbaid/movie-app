@@ -1,4 +1,9 @@
 import { Module } from '@nestjs/common';
+import { ScreensController } from './screens.controller';
+import { ScreensService } from './screens.service';
 
-@Module({})
+@Module({
+  controllers: [ScreensController],
+  providers: [ScreensService]
+})
 export class ScreensModule {}

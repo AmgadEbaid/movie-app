@@ -3,9 +3,11 @@ import {
     PrimaryGeneratedColumn,
     Column,
     CreateDateColumn,
-    UpdateDateColumn
+    UpdateDateColumn,
+    OneToMany
 } from "typeorm";
 import { MovieGenre } from './movie-genre.enum';
+import { Showtime } from './showtime.entity';
 
 @Entity()
 export class Movie {
@@ -39,6 +41,9 @@ export class Movie {
 
     @Column({ nullable: true }) // URL for the main cover image
     coverImageUrl: string;
+
+    @OneToMany(() => Showtime, showtime => showtime.movie)
+    showtimes: Showtime[]; // A movie can have many showtimes
 
     @CreateDateColumn()
     createdAt: Date;
