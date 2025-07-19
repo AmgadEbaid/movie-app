@@ -77,7 +77,7 @@ export class ScreensService {
     async findOne(id: string): Promise<Screen> {
         const screen = await this.screenRepository.findOne({ 
             where: { id },
-            relations: ['showtimes']
+            relations: ['showtimes', 'showtimes.movie']
         });
         
         if (!screen) {
