@@ -19,6 +19,7 @@ export class ScreensService {
     }
 
     async findAll(query: FindScreensQueryDto) {
+        console.log('Query:', query);
         const {
             search,
             totalRows,

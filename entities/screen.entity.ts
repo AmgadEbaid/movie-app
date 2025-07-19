@@ -23,4 +23,7 @@ export class Screen {
 
     @OneToMany(() => Showtime, showtime => showtime.screen, { cascade: ["remove"] })
     showtimes: Showtime[];
+
+    @CreateDateColumn()
+    createdAt: Date;
 }
