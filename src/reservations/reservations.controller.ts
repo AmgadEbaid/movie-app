@@ -62,6 +62,13 @@ export class ReservationsController {
         return this.reservationsService.getShowtimeSeatMap(showtimeId);
     }
 
+    @Get('revenue')
+    @UseGuards(RolesGuard)
+    @Roles(UserRole.ADMIN)
+    getRevenue() {
+        return this.reservationsService.getRevenue();
+    }
+
     // This is your webhook controller/service function
 
 }

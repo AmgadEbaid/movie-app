@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Reservation } from '../../entities/reservation.entity';
 import { Showtime } from '../../entities/showtime.entity';
 import { Seat } from '../../entities/seat.entity';
@@ -12,6 +12,7 @@ import { SeatMapRowDto, ShowtimeSeatMapDto } from './dto/showtime-seat-map.dto';
 import { session } from 'passport';
 import { formatShowtimeDescription } from 'src/utilty/descripthion';
 import Stripe from 'stripe';
+import { Connection } from 'typeorm'; // <--- 1. IMPORT IT HERE
 const stripe = require('stripe')('sk_test_51R8lHYGbopedQbOKQUQD2NcJC9BxmUkXetI8cpa69pMffxhF2vz98BU1EruMO1EvRplbx9x7gH6oPrmWgfJPiT5H00zxNEpvJf');
 
 @Injectable()
@@ -27,6 +28,8 @@ export class ReservationsService {
         private userRepository: Repository<User>,
         @InjectRepository(Screen)
         private screenRepository: Repository<Screen>,
+        private readonly connection: Connection,
+
     ) { }
 
     async create(userId: string, createReservationDto: CreateReservationDto): Promise<Reservation> {
@@ -115,66 +118,88 @@ export class ReservationsService {
 
 
     async refund(userId: string, id: number): Promise<void> {
-        const reservation = await this.findOne(id);
+        await this.connection.transaction(async (entityManager: EntityManager) => {
+            const reservation = await entityManager.findOne(Reservation, {
+                where: { id },
+                relations: ['user', 'showtime', 'seats'],
+            });
 
-        if (reservation.user.id !== userId) {
-            throw new UnauthorizedException('You are not authorized to cancel this reservation.');
-        }
-        if (reservation.status !== ReservationStatus.completed) {
-            throw new BadRequestException('Only completed reservations can be refund.');
-        }
+            if (!reservation) {
+                throw new NotFoundException(`Reservation with ID ${id} not found`);
+            }
 
-        const now = new Date();
-        const showtimeStartTime = new Date(reservation.showtime.startTime);
-        const fifteenMinutesBeforeShow = new Date(showtimeStartTime.getTime() - 15 * 60 * 1000);
+            if (reservation.user.id !== userId) {
+                throw new UnauthorizedException('You are not authorized to cancel this reservation.');
+            }
+            if (reservation.status !== ReservationStatus.completed) {
+                throw new BadRequestException('Only completed reservations can be refund.');
+            }
 
-        if (now >= fifteenMinutesBeforeShow) {
-            throw new BadRequestException('Cannot cancel reservation less than 15 minutes before showtime or if show has already started.');
-        }
+            const now = new Date();
+            const showtimeStartTime = new Date(reservation.showtime.startTime);
+            const fifteenMinutesBeforeShow = new Date(showtimeStartTime.getTime() - 15 * 60 * 1000);
 
-        // Remove associated seats first
+            if (now >= fifteenMinutesBeforeShow) {
+                throw new BadRequestException('Cannot cancel reservation less than 15 minutes before showtime or if show has already started.');
+            }
 
+            const refund = await stripe.refunds.create({
+                charge: reservation.latest_charge, // Use the payment intent ID from the reservation
+            });
 
-        const refund = await stripe.refunds.create({
-            charge: reservation.latest_charge, // Use the payment intent ID from the reservation
+            if (!refund) {
+                throw new BadRequestException('Refund failed');
+            }
+
+            if (reservation.seats && reservation.seats.length > 0) {
+                await entityManager.remove(reservation.seats);
+            }
+
+            reservation.status = ReservationStatus.REFUNDED;
+            reservation.seats = []; // Clear the in-memory array
+
+            await entityManager.save(reservation);
         });
-        if (!refund) {
-            throw new BadRequestException('Refund failed');
-        }
-
-        reservation.status = ReservationStatus.REFUNDED;
-        reservation.seats = []; // Clear the in-memory array
-        await this.reservationRepository.save(reservation)
-
-        await this.seatRepository.remove(reservation.seats);
-
-        return refund
     }
 
     async cancelReservation(userId: string, id: number): Promise<void> {
-        const reservation = await this.findOne(id);
 
-        if (reservation.user.id !== userId) {
-            throw new UnauthorizedException('You are not authorized to cancel this reservation.');
-        }
-        if (reservation.status !== ReservationStatus.PENDING) {
-            throw new BadRequestException('Only PENDING reservations can be cancelled.');
-        }
+        const expiredSession = await this.connection.transaction(async (entityManager: EntityManager) => {
+            // 1. Fetch all entities using the transaction's entity manager
+            const reservation = await entityManager.findOne(Reservation, { // 2 arguments
+                where: { id: id }, // <-- The ID goes inside the 'where' property
+                relations: ['user', 'showtime', 'seats'],
+            });
 
-        const now = new Date();
-        const showtimeStartTime = new Date(reservation.showtime.startTime);
-        const fifteenMinutesBeforeShow = new Date(showtimeStartTime.getTime() - 15 * 60 * 1000);
+            // 2. Perform all your validation checks
+            if (!reservation) {
+                throw new NotFoundException('Reservation not found.');
+            }
+            if (reservation.user.id !== userId) {
+                throw new UnauthorizedException('You are not authorized to cancel this reservation.');
+            }
+            // ... other checks ...
 
-        if (now >= fifteenMinutesBeforeShow) {
-            throw new BadRequestException('Cannot cancel reservation less than 15 minutes before showtime or if show has already started.');
-        }
+            // 3. Remove the seats FROM THE DATABASE using the same entity manager
+            // This is a direct, explicit command within the transaction
+            if (reservation.seats && reservation.seats.length > 0) {
+                await entityManager.remove(reservation.seats);
+            }
+            const expiredSession = await stripe.checkout.sessions.expire(reservation.sessionId);
 
-        // Remove associated seats first
-        console.log(`Cancelling seats with ID: ${reservation.seats.map(seat => seat.id).join(', ')}`);
-        await this.seatRepository.remove(reservation.seats);
-        reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
-        await this.reservationRepository.save(reservation);
 
+            // 4. Update the parent entity's state
+            reservation.status = ReservationStatus.CANCELLED;
+
+            // 5. IMPORTANT: Clear the in-memory array so the final save doesn't get confused
+            reservation.seats = [];
+
+            // 6. Save the final state of the parent entity
+            await entityManager.save(reservation);
+            return expiredSession
+        });
+
+        return expiredSession;
 
     }
 
@@ -267,28 +292,33 @@ export class ReservationsService {
 
         });
         reservation.stripeSessionUrl = session.url;
+        reservation.sessionId = session.id;
         this.reservationRepository.save(reservation);
         return session.url;
     }
 
     async expireReservation(reservationId: number) {
-        console.log(`Expiring reservation with ID: ${reservationId}`);
-        console.log(`we are here: ${reservationId}`);
+        await this.connection.transaction(async (entityManager: EntityManager) => {
+            console.log(`Expiring reservation with ID: ${reservationId}`);
 
-        const reservation = await this.reservationRepository.findOne({
-            where: { id: reservationId },
-            relations: ['seats'],
+            const reservation = await entityManager.findOne(Reservation, {
+                where: { id: reservationId },
+                relations: ['seats'],
+            });
+
+            if (!reservation) {
+                throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
+            }
+
+            if (reservation.seats && reservation.seats.length > 0) {
+                await entityManager.remove(reservation.seats);
+            }
+
+            reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
+            reservation.seats = []; // Clear the in-memory array
+
+            await entityManager.save(reservation);
         });
-        if (!reservation) {
-            throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
-        }
-        reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
-        await this.reservationRepository.save(reservation);
-        await this.seatRepository.remove(reservation.seats);
-
-        // Then remove the reservation
-
-
     }
 
     async confirmReservation(reservationId: number, latest_charge: string) {
@@ -316,6 +346,17 @@ export class ReservationsService {
         }
         reservation.status = ReservationStatus.REFUNDED;
         return this.reservationRepository.save(reservation)// Or any other status you want to set
+    }
+
+
+    async getRevenue(): Promise<{ totalRevenue: number }> {
+        const { totalRevenue } = await this.reservationRepository
+            .createQueryBuilder('reservation')
+            .select('SUM(reservation.totalPrice)', 'totalRevenue')
+            .where('reservation.status = :status', { status: ReservationStatus.completed })
+            .getRawOne();
+
+        return { totalRevenue: parseFloat(totalRevenue) || 0 };
     }
 
 

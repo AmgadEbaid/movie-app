@@ -30,6 +30,9 @@ export class Reservation {
     @Column({nullable: true})
     latest_charge: string;
 
+    @Column({nullable: true})
+    sessionId: string;
+
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     totalPrice: number;
 
