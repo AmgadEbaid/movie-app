@@ -14,7 +14,7 @@ export class Reservation {
     @ManyToOne(() => Showtime, showtime => showtime.reservations, { nullable: false })
     showtime: Showtime; // The showtime this booking is for
 
-    @OneToMany(() => Seat, seat => seat.reservation, { 
+    @OneToMany(() => Seat, seat => seat.reservation, {
         cascade: true,
         eager: true // Always load seats with reservation
     })
@@ -22,12 +22,23 @@ export class Reservation {
 
     @Column({
         type: "enum",
-        enum: ["pending", "confirmed", "cancelled"],
+        enum: ["pending", "cancelled", "completed", "refunded"],
         default: "pending"
     })
     status: string;
 
+    @Column({nullable: true})
+    latest_charge: string;
 
+    @Column({ type: 'decimal', precision: 10, scale: 2 })
+    totalPrice: number;
+
+    @Column()
+    numberOfSeats: number; // Total number of seats reserved
+
+    @Column({ nullable: true , length: 1024 })
+    stripeSessionUrl: string; // Stripe session ID for payment tracking
+    // Total price for the reservation
     @CreateDateColumn()
     createdAt: Date;
 

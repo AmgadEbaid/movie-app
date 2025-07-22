@@ -4,9 +4,11 @@ import { IsEnum, IsOptional } from 'class-validator';
 
 export enum ReservationStatus {
     PENDING = 'pending',
-    CONFIRMED = 'confirmed',
+    completed = 'completed',
     CANCELLED = 'cancelled',
+    REFUNDED = 'refunded'
 }
+
 
 export class UpdateReservationDto extends PartialType(CreateReservationDto) {
     @IsOptional()

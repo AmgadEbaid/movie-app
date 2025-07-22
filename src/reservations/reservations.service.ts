@@ -9,6 +9,10 @@ import { Screen } from '../../entities/screen.entity';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto, ReservationStatus } from './dto/update-reservation.dto';
 import { SeatMapRowDto, ShowtimeSeatMapDto } from './dto/showtime-seat-map.dto';
+import { session } from 'passport';
+import { formatShowtimeDescription } from 'src/utilty/descripthion';
+import Stripe from 'stripe';
+const stripe = require('stripe')('sk_test_51R8lHYGbopedQbOKQUQD2NcJC9BxmUkXetI8cpa69pMffxhF2vz98BU1EruMO1EvRplbx9x7gH6oPrmWgfJPiT5H00zxNEpvJf');
 
 @Injectable()
 export class ReservationsService {
@@ -23,7 +27,7 @@ export class ReservationsService {
         private userRepository: Repository<User>,
         @InjectRepository(Screen)
         private screenRepository: Repository<Screen>,
-    ) {}
+    ) { }
 
     async create(userId: string, createReservationDto: CreateReservationDto): Promise<Reservation> {
         const { showtimeId, seats } = createReservationDto;
@@ -33,7 +37,7 @@ export class ReservationsService {
             throw new NotFoundException(`User with ID ${userId} not found`);
         }
 
-        const showtime = await this.showtimeRepository.findOne({ where: { id: showtimeId }, relations: ['screen'] });
+        const showtime = await this.showtimeRepository.findOne({ where: { id: showtimeId }, relations: { movie: true, screen: true } });
         if (!showtime) {
             throw new NotFoundException(`Showtime with ID ${showtimeId} not found`);
         }
@@ -76,10 +80,14 @@ export class ReservationsService {
             user,
             showtime,
             seats: newSeats,
-            status: ReservationStatus.CONFIRMED, // Or PENDING, depending on your flow
+            status: ReservationStatus.PENDING, // Or PENDING, depending on your flow
         });
+        reservation.totalPrice = showtime.price * newSeats.length; // Assuming price is per seat
+        reservation.numberOfSeats = newSeats.length;
+
 
         return await this.reservationRepository.save(reservation);
+
     }
 
     async findAll(): Promise<Reservation[]> {
@@ -106,11 +114,14 @@ export class ReservationsService {
     }
 
 
-    async remove(userId: string, id: number): Promise<void> {
+    async refund(userId: string, id: number): Promise<void> {
         const reservation = await this.findOne(id);
 
         if (reservation.user.id !== userId) {
             throw new UnauthorizedException('You are not authorized to cancel this reservation.');
+        }
+        if (reservation.status !== ReservationStatus.completed) {
+            throw new BadRequestException('Only completed reservations can be refund.');
         }
 
         const now = new Date();
@@ -122,10 +133,49 @@ export class ReservationsService {
         }
 
         // Remove associated seats first
+
+
+        const refund = await stripe.refunds.create({
+            charge: reservation.latest_charge, // Use the payment intent ID from the reservation
+        });
+        if (!refund) {
+            throw new BadRequestException('Refund failed');
+        }
+
+        reservation.status = ReservationStatus.REFUNDED;
+        reservation.seats = []; // Clear the in-memory array
+        await this.reservationRepository.save(reservation)
+
         await this.seatRepository.remove(reservation.seats);
 
-        // Then remove the reservation
-        await this.reservationRepository.remove(reservation);
+        return refund
+    }
+
+    async cancelReservation(userId: string, id: number): Promise<void> {
+        const reservation = await this.findOne(id);
+
+        if (reservation.user.id !== userId) {
+            throw new UnauthorizedException('You are not authorized to cancel this reservation.');
+        }
+        if (reservation.status !== ReservationStatus.PENDING) {
+            throw new BadRequestException('Only PENDING reservations can be cancelled.');
+        }
+
+        const now = new Date();
+        const showtimeStartTime = new Date(reservation.showtime.startTime);
+        const fifteenMinutesBeforeShow = new Date(showtimeStartTime.getTime() - 15 * 60 * 1000);
+
+        if (now >= fifteenMinutesBeforeShow) {
+            throw new BadRequestException('Cannot cancel reservation less than 15 minutes before showtime or if show has already started.');
+        }
+
+        // Remove associated seats first
+        console.log(`Cancelling seats with ID: ${reservation.seats.map(seat => seat.id).join(', ')}`);
+        await this.seatRepository.remove(reservation.seats);
+        reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
+        await this.reservationRepository.save(reservation);
+
+
     }
 
     async findUserReservations(userId: string): Promise<Reservation[]> {
@@ -175,4 +225,99 @@ export class ReservationsService {
             seatMap,
         };
     }
+
+
+    async Payment(reservation: Reservation) {
+        const YOUR_DOMAIN = 'http://localhost:3001'; // Replace with your actual domain
+        const description = formatShowtimeDescription(reservation.seats, reservation.showtime.startTime)
+        const thirtyMinutesFromNow = Date.now() + 30 * 60 * 1000;
+
+        // Stripe expects the timestamp in seconds, so we divide by 1000 and floor it.
+        const expiresAtTimestamp = Math.floor(thirtyMinutesFromNow / 1000);
+        const session = await stripe.checkout.sessions.create({
+            line_items: [
+                {
+                    // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+                    price_data: {
+                        currency: 'usd', // Or 'eur', 'gbp', etc.
+                        // IMPORTANT: The amount must be in the smallest currency unit (e.g., cents for USD).
+                        // So, $19.99 becomes 1999.
+                        unit_amount: reservation.showtime.price * 100, // Convert to cents
+                        product_data: {
+                            name: `${reservation.showtime.movie.title} Reservation`, // Custom name
+                            description: description, // Custom description
+                            images: ['https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQP7TzsGto_FJI2I9IibPV1GWd--ki-_NAAYQ&s'],
+                        },
+                    },
+                    quantity: reservation.seats.length,
+
+
+                },
+            ],
+            metadata: {
+                // Pass your internal reservation ID to Stripe
+                reservation_id: reservation.id,
+                // You can add any other useful data too
+                user_id: reservation.user.id
+            },
+            mode: 'payment',
+            success_url: `${YOUR_DOMAIN}/success.html`,
+            cancel_url: `${YOUR_DOMAIN}/cancel.html`,
+            expires_at: expiresAtTimestamp,
+
+        });
+        reservation.stripeSessionUrl = session.url;
+        this.reservationRepository.save(reservation);
+        return session.url;
+    }
+
+    async expireReservation(reservationId: number) {
+        console.log(`Expiring reservation with ID: ${reservationId}`);
+        console.log(`we are here: ${reservationId}`);
+
+        const reservation = await this.reservationRepository.findOne({
+            where: { id: reservationId },
+            relations: ['seats'],
+        });
+        if (!reservation) {
+            throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
+        }
+        reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
+        await this.reservationRepository.save(reservation);
+        await this.seatRepository.remove(reservation.seats);
+
+        // Then remove the reservation
+
+
+    }
+
+    async confirmReservation(reservationId: number, latest_charge: string) {
+        console.log(`Confirming reservation with ID: ${reservationId}`);
+        const reservation = await this.reservationRepository.findOne({
+            where: { id: reservationId },
+            relations: ['seats'],
+        });
+        if (!reservation) {
+            throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
+        }
+        reservation.status = ReservationStatus.completed;
+        reservation.latest_charge = latest_charge
+        return this.reservationRepository.save(reservation)// Or any other status you want to set
+    }
+
+    async confirmRfund(reservationId: number) {
+        console.log(`Confirming reservation with ID: ${reservationId}`);
+        const reservation = await this.reservationRepository.findOne({
+            where: { id: reservationId },
+            relations: ['seats'],
+        });
+        if (!reservation) {
+            throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
+        }
+        reservation.status = ReservationStatus.REFUNDED;
+        return this.reservationRepository.save(reservation)// Or any other status you want to set
+    }
+
+
+
 }

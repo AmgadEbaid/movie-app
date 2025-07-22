@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, ParseIntPipe, Res, BadRequestException } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
@@ -6,16 +6,22 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../auth/enums/user-role.enum';
+import Stripe from 'stripe';
+const stripe = require('stripe')('sk_test_51R8lHYGbopedQbOKQUQD2NcJC9BxmUkXetI8cpa69pMffxhF2vz98BU1EruMO1EvRplbx9x7gH6oPrmWgfJPiT5H00zxNEpvJf');
 
 @Controller('reservations')
 @UseGuards(AuthGuard('jwt'))
 export class ReservationsController {
-    constructor(private readonly reservationsService: ReservationsService) {}
+    constructor(private readonly reservationsService: ReservationsService) { }
 
     @Post()
-    create(@Req() req, @Body() createReservationDto: CreateReservationDto) {
-        return this.reservationsService.create(req.user.id, createReservationDto);
+    async create(@Req() req, @Body() createReservationDto: CreateReservationDto) {
+        const Reservation = await this.reservationsService.create(req.user.id, createReservationDto);
+        const sessionUrl = await this.reservationsService.Payment(Reservation);
+        return { sessionUrl };
     }
+
+
 
     @Get()
     @UseGuards(RolesGuard)
@@ -41,13 +47,21 @@ export class ReservationsController {
         return this.reservationsService.update(id, updateReservationDto);
     }
 
-    @Delete(':id')
-    remove(@Req() req, @Param('id', ParseIntPipe) id: number) {
-        return this.reservationsService.remove(req.user.id, id);
+    @Post('refund/:id')
+    refund(@Req() req, @Param('id', ParseIntPipe) id: number) {
+        return this.reservationsService.refund(req.user.id, id);
+    }
+
+    @Post('cancelReservation/:id')
+    cancelReservation(@Req() req, @Param('id', ParseIntPipe) id: number) {
+        return this.reservationsService.cancelReservation(req.user.id, id);
     }
 
     @Get('seat-map/:showtimeId')
     getShowtimeSeatMap(@Param('showtimeId', ParseIntPipe) showtimeId: number) {
         return this.reservationsService.getShowtimeSeatMap(showtimeId);
     }
+
+    // This is your webhook controller/service function
+
 }

@@ -12,6 +12,7 @@ import { UserModule } from 'src/user/user.module';
 @Module({
   imports: [TypeOrmModule.forFeature([Reservation, Showtime, Seat, User, Screen]),UserModule],
   controllers: [ReservationsController],
-  providers: [ReservationsService]
+  providers: [ReservationsService],
+  exports: [ReservationsService]
 })
 export class ReservationsModule {}

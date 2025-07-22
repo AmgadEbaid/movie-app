@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Res } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -16,6 +16,7 @@ import { Showtime } from 'entities/showtime.entity';
 import { Seat } from 'entities/seat.entity';
 import { ScreensModule } from './screens/screens.module';
 import { Screen } from 'entities/screen.entity';
+import { ReservationsService } from './reservations/reservations.service';
 
 
 @Module({
@@ -37,6 +38,7 @@ import { Screen } from 'entities/screen.entity';
       }),
       inject: [ConfigService],
     }),
+    
     AuthModule,
     UserModule,
     MoviesModule,
