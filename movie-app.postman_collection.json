@@ -85,6 +85,129 @@
 			]
 		},
 		{
+			"name": "Reporting",
+			"item": [
+				{
+					"name": "Get Financial Report",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reporting/financial?startDate=2023-01-01&endDate=2023-12-31",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"reporting",
+								"financial"
+							],
+							"query": [
+								{
+									"key": "startDate",
+									"value": "2023-01-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2023-12-31"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Sales Performance Report",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reporting/sales?startDate=2023-01-01&endDate=2023-12-31&movieId=your_movie_id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"reporting",
+								"sales"
+							],
+							"query": [
+								{
+									"key": "startDate",
+									"value": "2023-01-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2023-12-31"
+								},
+								{
+									"key": "movieId",
+									"value": "your_movie_id"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Report",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/reporting/users?startDate=2023-01-01&endDate=2023-12-31",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"reporting",
+								"users"
+							],
+							"query": [
+								{
+									"key": "startDate",
+									"value": "2023-01-01"
+								},
+								{
+									"key": "endDate",
+									"value": "2023-12-31"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Movies",
 			"item": [
 				{

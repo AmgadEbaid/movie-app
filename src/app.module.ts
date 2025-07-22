@@ -17,6 +17,7 @@ import { Seat } from 'entities/seat.entity';
 import { ScreensModule } from './screens/screens.module';
 import { Screen } from 'entities/screen.entity';
 import { ReservationsService } from './reservations/reservations.service';
+import { ReportingModule } from './reporting/reporting.module';
 
 
 @Module({
@@ -45,7 +46,8 @@ import { ReservationsService } from './reservations/reservations.service';
     ScreensModule,
     ShowtimesModule,
     ReservationsModule,
-    SeatsModule
+    SeatsModule,
+    ReportingModule
   ],
   controllers: [AppController],
   providers: [AppService],
