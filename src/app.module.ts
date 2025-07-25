@@ -18,6 +18,7 @@ import { ScreensModule } from './screens/screens.module';
 import { Screen } from 'entities/screen.entity';
 import { ReservationsService } from './reservations/reservations.service';
 import { ReportingModule } from './reporting/reporting.module';
+import { StripeModule } from './stripe/stripe.module';
 
 
 @Module({
@@ -47,7 +48,8 @@ import { ReportingModule } from './reporting/reporting.module';
     ShowtimesModule,
     ReservationsModule,
     SeatsModule,
-    ReportingModule
+    ReportingModule,
+    StripeModule
   ],
   controllers: [AppController],
   providers: [AppService],

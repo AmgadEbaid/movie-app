@@ -271,7 +271,7 @@ export class ReservationsService {
                         product_data: {
                             name: `${reservation.showtime.movie.title} Reservation`, // Custom name
                             description: description, // Custom description
-                            images: ['https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQP7TzsGto_FJI2I9IibPV1GWd--ki-_NAAYQ&s'],
+                            images: [reservation.showtime.movie.coverImageUrl], // Use a default image if none provided
                         },
                     },
                     quantity: reservation.seats.length,

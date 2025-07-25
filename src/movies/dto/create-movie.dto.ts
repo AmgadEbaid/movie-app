@@ -27,7 +27,5 @@ export class CreateMovieDto {
   @IsNotEmpty()
   genres: MovieGenre[];
 
-  @IsString()
-  @IsOptional()
-  coverImageUrl?: string;
+  
 }

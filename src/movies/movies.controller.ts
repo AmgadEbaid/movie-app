@@ -8,8 +8,11 @@ import {
   Delete, 
   UseGuards, 
   Query,
-  ValidationPipe 
+  ValidationPipe, 
+  UseInterceptors, 
+  UploadedFile 
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { FindMoviesQueryDto } from './dto/find-movies-query.dto';
 import { MoviesService } from './movies.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
@@ -27,9 +30,9 @@ export class MoviesController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  create(@Body() createMovieDto: CreateMovieDto) {
-    console.log('Creating movie with data:',);
-    return this.moviesService.create(createMovieDto);
+  @UseInterceptors(FileInterceptor('file'))
+  create(@Body() createMovieDto: CreateMovieDto, @UploadedFile() file: Express.Multer.File) {
+    return this.moviesService.create(createMovieDto, file);
   }
 
   @Get()
