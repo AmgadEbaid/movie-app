@@ -6,11 +6,11 @@ import { SignInDto } from './dto/signin.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   async register(@Body() registerUserDto: RegisterUserDto) {
-    return this.authService.register(registerUserDto.email, registerUserDto.password);
+    return this.authService.register(registerUserDto.email, registerUserDto.password, registerUserDto.name);
   }
 
   @Post('signin')
@@ -31,8 +31,8 @@ export class AuthController {
   @Redirect()
   async googleAuthRedirect(@Request() req) {
     const { access_token } = await this.authService.login(req.user);
-    return { 
-      url: `http://localhost:3002?token=${access_token}`,
+    return {
+      url: `http://localhost:3000/auth?token=${access_token}`,
       statusCode: 302
     };
   }

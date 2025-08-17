@@ -14,14 +14,14 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
-  async register(email: string, password: string): Promise<{ access_token: string }> {
+  async register(email: string, password: string, name: string): Promise<{ access_token: string }> {
     const existingUser = await this.userService.findByEmail(email);
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
-    const user = await this.userService.create(email, password);
+    const user = await this.userService.create(email, password, name);
     return this.login(user);
   }
 
@@ -59,7 +59,7 @@ export class AuthService {
     };
   }
 
-  async validateGoogleUser(profile: { id: string; emails: Array<{ value: string }> }): Promise<User> {
+  async validateGoogleUser(profile : any ): Promise<User> {
     if (!profile || !profile.id || !profile.emails || profile.emails.length === 0) {
       throw new BadRequestException('Invalid Google profile');
     }
@@ -70,18 +70,18 @@ export class AuthService {
     }
 
     let user = await this.userService.findByGoogleId(profile.id);
-    
+
     if (!user) {
       user = await this.userService.findByEmail(email);
-      
+
       if (user) {
         user.googleId = profile.id;
         await this.userService.save(user);
       } else {
-        user = await this.userService.create(email, profile.id);
+        user = await this.userService.createOauthUser(email, profile.id, profile.displayName);
       }
     }
-    
+
     return user;
   }
 }

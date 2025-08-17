@@ -19,12 +19,15 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({
     transform: true,
     whitelist: true,
-    forbidNonWhitelisted: true, 
+    forbidNonWhitelisted: true,
     transformOptions: {
       enableImplicitConversion: true, // Automatically converts strings to numbers/booleans
     },
   }));
+  app.enableCors(); 
 
-  await app.listen(3001);
+  await app.listen(3001).then(() => {
+    console.log('Server is running on port 3001', process.env.databasename, process.env.HOST, process.env.PORT);
+  });
 }
 bootstrap();

@@ -2,86 +2,105 @@ import { BadRequestException, Body, Controller, Get, Post, Req, Res } from '@nes
 import { AppService } from './app.service';
 import Stripe from 'stripe';
 import { ReservationsService } from './reservations/reservations.service';
-const StripeSDK = require('stripe')('sk_test_51R8lHYGbopedQbOKQUQD2NcJC9BxmUkXetI8cpa69pMffxhF2vz98BU1EruMO1EvRplbx9x7gH6oPrmWgfJPiT5H00zxNEpvJf');
+import { ConfigService } from '@nestjs/config';
+
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService, private readonly reservationsService: ReservationsService) { }
+  private stripe: Stripe;
+  private endpointSecret: string;
+  
+  constructor(
+    private readonly reservationsService: ReservationsService, 
+    private readonly configService: ConfigService
+  ) {
+    this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!);
+    this.endpointSecret = this.configService.get<string>('STRIPE_WEBHOOK_SECRET')!;
+  }
 
   @Post('/stripe-webhook')
   async handleStripeWebhook(@Req() request, @Res() response) {
     const signature = request.headers['stripe-signature'] as string;
 
-
-
-    // Best Practice: Load this from process.env!
-    const endpointSecret = 'whsec_f00903b314303c30f33e8a349c4f5e6b0af6fd704961e6457569eed9df901d52';
-
     if (!signature) {
       throw new BadRequestException('Missing Stripe signature');
     }
 
-    let event: Stripe.Event; // Define the event variable here
+    let event: Stripe.Event;
 
     try {
-      // Use request.rawBody which MUST be attached by a middleware
       event = Stripe.webhooks.constructEvent(
-        (request as any).rawBody, // Use the rawBody from the request
+        (request as any).rawBody,
         signature,
-        endpointSecret,
+        this.endpointSecret,
       );
     } catch (err) {
       console.log(`⚠️  Webhook signature verification failed.`, err.message);
       return response.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    const session = event.data.object as Stripe.Checkout.Session;
-    const reservationId = session.metadata?.reservation_id;
-    console.log('Session metadata:', event);
-    const paymentIntent = await StripeSDK.paymentIntents.retrieve(
-      session.payment_intent
-    );
-    const chargeId = paymentIntent.latest_charge;
+    console.log(`Received event: ${event.type}`);
 
+    try {
+      switch (event.type) {
+        case 'checkout.session.completed':
+          await this.handleCheckoutSessionCompleted(event);
+          break;
+          
+        case 'checkout.session.expired':
+          await this.handleCheckoutSessionExpired(event);
+          break;
+          
+        default:
+          console.log(`Unhandled event type: ${event.type} - ignoring`);
+          break;
+      }
 
-    // 2. Get the ID of the successful charge from the Payment Intent
-
-    // Guard against events without our metadata
-    if (!reservationId) {
-      console.error('Webhook received without reservation_id in metadata');
-      throw new BadRequestException('Missing required metadata');
+      return response.status(200).json({ received: true });
+      
+    } catch (error) {
+      console.error(`Error processing webhook: ${error.message}`);
+      return response.status(500).json({ error: 'Webhook processing failed' });
     }
-
-    // --- Handle different event types ---
-
-    if (event.type === 'checkout.session.completed') {
-      console.log(`Payment succeeded for Reservation ID: ${reservationId}`);
-
-      // Find reservation by ID and update its status to 'PAID'
-      // Trigger confirmation email, etc.
-
-      await this.reservationsService.confirmReservation(+reservationId, chargeId);
-
-    } else if (event.type === 'checkout.session.expired') {
-      console.log(`Payment session expired for Reservation ID: ${reservationId}`);
-      // Find reservation by ID and update its status to 'EXPIRED' or 'CANCELLED'
-      // Release the seats back into the pool.
-      await this.reservationsService.expireReservation(+reservationId);
-    } else if (event.type === 'charge.refunded') {
-      const charge = event.data.object;
-
-      // This works perfectly because of the metadata you set on the Checkout Session
-      const reservationIdRefund = charge.metadata.reservation_id;
-      console.log(`Payment session expired for Reservation ID: ${reservationIdRefund}`);
-      // Find reservation by ID and update its status to 'EXPIRED' or 'CANCELLED'
-      // Release the seats back into the pool.
-      await this.reservationsService.confirmRfund(+reservationIdRefund);
-    } else {
-      // You can log other event types if you want, but you don't have to handle them.
-      console.log(`Received unhandled event type: ${event.type}`);
-    }
-
-    // Return a 200 OK to Stripe to acknowledge receipt of the event
-    return { status: 'success' };
   }
 
+  private async handleCheckoutSessionCompleted(event: Stripe.Event) {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const reservationId = session.metadata?.reservation_id;
+
+    if (!reservationId) {
+      console.error('Checkout session completed without reservation_id in metadata');
+      throw new Error('Missing required metadata');
+    }
+
+    // Get charge ID from the session
+    let chargeId: string | null = null;
+    
+    if (session.payment_intent) {
+      try {
+        const paymentIntent = await this.stripe.paymentIntents.retrieve(
+          session.payment_intent as string,
+        );
+        chargeId = paymentIntent.latest_charge as string;
+      } catch (error) {
+        console.error('Failed to retrieve payment intent:', error.message);
+        // Continue without charge ID if retrieval fails
+      }
+    }
+
+    console.log(`Payment succeeded for Reservation ID: ${reservationId}`);
+    await this.reservationsService.confirmReservation(+reservationId, chargeId!);
+  }
+
+  private async handleCheckoutSessionExpired(event: Stripe.Event) {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const reservationId = session.metadata?.reservation_id;
+
+    if (!reservationId) {
+      console.error('Checkout session expired without reservation_id in metadata');
+      throw new Error('Missing required metadata');
+    }
+
+    console.log(`Payment session expired for Reservation ID: ${reservationId}`);
+    await this.reservationsService.expireReservation(+reservationId);
+  }
 }

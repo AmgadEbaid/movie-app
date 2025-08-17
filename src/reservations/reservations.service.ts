@@ -5,18 +5,18 @@ import { Reservation } from '../../entities/reservation.entity';
 import { Showtime } from '../../entities/showtime.entity';
 import { Seat } from '../../entities/seat.entity';
 import { User } from '../../entities/user.entity';
-import { Screen } from '../../entities/screen.entity';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto, ReservationStatus } from './dto/update-reservation.dto';
 import { SeatMapRowDto, ShowtimeSeatMapDto } from './dto/showtime-seat-map.dto';
-import { session } from 'passport';
 import { formatShowtimeDescription } from 'src/utilty/descripthion';
 import Stripe from 'stripe';
-import { Connection } from 'typeorm'; // <--- 1. IMPORT IT HERE
-const stripe = require('stripe')('sk_test_51R8lHYGbopedQbOKQUQD2NcJC9BxmUkXetI8cpa69pMffxhF2vz98BU1EruMO1EvRplbx9x7gH6oPrmWgfJPiT5H00zxNEpvJf');
 
+import { ConfigService } from '@nestjs/config';
+
+// god why this code looks awful i just wrote it 15 days ago and it was fine
 @Injectable()
 export class ReservationsService {
+    private stripe: Stripe;
     constructor(
         @InjectRepository(Reservation)
         private reservationRepository: Repository<Reservation>,
@@ -26,11 +26,12 @@ export class ReservationsService {
         private seatRepository: Repository<Seat>,
         @InjectRepository(User)
         private userRepository: Repository<User>,
-        @InjectRepository(Screen)
-        private screenRepository: Repository<Screen>,
-        private readonly connection: Connection,
+        private readonly EntityManager: EntityManager,
+        private readonly configService: ConfigService,
 
-    ) { }
+    ) { 
+      this.stripe = new Stripe(this.configService.get<string>('STRIPE_SECRET_KEY')!)
+    }
 
     async create(userId: string, createReservationDto: CreateReservationDto): Promise<Reservation> {
         const { showtimeId, seats } = createReservationDto;
@@ -108,7 +109,6 @@ export class ReservationsService {
     async update(id: number, updateReservationDto: UpdateReservationDto): Promise<Reservation> {
         const reservation = await this.findOne(id);
 
-        // Only allow status update for now
         if (updateReservationDto.status) {
             reservation.status = updateReservationDto.status;
         }
@@ -118,7 +118,7 @@ export class ReservationsService {
 
 
     async refund(userId: string, id: number): Promise<void> {
-        await this.connection.transaction(async (entityManager: EntityManager) => {
+        await this.EntityManager.transaction(async (entityManager: EntityManager) => {
             const reservation = await entityManager.findOne(Reservation, {
                 where: { id },
                 relations: ['user', 'showtime', 'seats'],
@@ -143,8 +143,8 @@ export class ReservationsService {
                 throw new BadRequestException('Cannot cancel reservation less than 15 minutes before showtime or if show has already started.');
             }
 
-            const refund = await stripe.refunds.create({
-                charge: reservation.latest_charge, // Use the payment intent ID from the reservation
+            const refund = await this.stripe.refunds.create({
+                charge: reservation.latest_charge, 
             });
 
             if (!refund) {
@@ -156,45 +156,37 @@ export class ReservationsService {
             }
 
             reservation.status = ReservationStatus.REFUNDED;
-            reservation.seats = []; // Clear the in-memory array
+            reservation.seats = []; 
 
             await entityManager.save(reservation);
         });
     }
 
-    async cancelReservation(userId: string, id: number): Promise<void> {
+    async cancelReservation(userId: string, id: number) {
 
-        const expiredSession = await this.connection.transaction(async (entityManager: EntityManager) => {
-            // 1. Fetch all entities using the transaction's entity manager
-            const reservation = await entityManager.findOne(Reservation, { // 2 arguments
-                where: { id: id }, // <-- The ID goes inside the 'where' property
+        const expiredSession = await this.EntityManager.transaction(async (entityManager: EntityManager) => {
+            const reservation = await entityManager.findOne(Reservation, { 
+                where: { id: id }, 
                 relations: ['user', 'showtime', 'seats'],
             });
 
-            // 2. Perform all your validation checks
             if (!reservation) {
                 throw new NotFoundException('Reservation not found.');
             }
             if (reservation.user.id !== userId) {
                 throw new UnauthorizedException('You are not authorized to cancel this reservation.');
             }
-            // ... other checks ...
 
-            // 3. Remove the seats FROM THE DATABASE using the same entity manager
-            // This is a direct, explicit command within the transaction
             if (reservation.seats && reservation.seats.length > 0) {
                 await entityManager.remove(reservation.seats);
             }
-            const expiredSession = await stripe.checkout.sessions.expire(reservation.sessionId);
+            const expiredSession = await this.stripe.checkout.sessions.expire(reservation.sessionId);
 
 
-            // 4. Update the parent entity's state
             reservation.status = ReservationStatus.CANCELLED;
 
-            // 5. IMPORTANT: Clear the in-memory array so the final save doesn't get confused
             reservation.seats = [];
 
-            // 6. Save the final state of the parent entity
             await entityManager.save(reservation);
             return expiredSession
         });
@@ -253,25 +245,21 @@ export class ReservationsService {
 
 
     async Payment(reservation: Reservation) {
-        const YOUR_DOMAIN = 'http://localhost:3001'; // Replace with your actual domain
+        const YOUR_DOMAIN = 'http://localhost:3001'; 
         const description = formatShowtimeDescription(reservation.seats, reservation.showtime.startTime)
         const thirtyMinutesFromNow = Date.now() + 30 * 60 * 1000;
 
-        // Stripe expects the timestamp in seconds, so we divide by 1000 and floor it.
         const expiresAtTimestamp = Math.floor(thirtyMinutesFromNow / 1000);
-        const session = await stripe.checkout.sessions.create({
+        const session = await this.stripe.checkout.sessions.create({
             line_items: [
                 {
-                    // Provide the exact Price ID (for example, price_1234) of the product you want to sell
                     price_data: {
-                        currency: 'usd', // Or 'eur', 'gbp', etc.
-                        // IMPORTANT: The amount must be in the smallest currency unit (e.g., cents for USD).
-                        // So, $19.99 becomes 1999.
-                        unit_amount: reservation.showtime.price * 100, // Convert to cents
+                        currency: 'usd', 
+                        unit_amount: reservation.showtime.price * 100, 
                         product_data: {
-                            name: `${reservation.showtime.movie.title} Reservation`, // Custom name
-                            description: description, // Custom description
-                            images: [reservation.showtime.movie.coverImageUrl], // Use a default image if none provided
+                            name: `${reservation.showtime.movie.title} Reservation`,
+                            description: description, 
+                            images: [reservation.showtime.movie.coverImageUrl],
                         },
                     },
                     quantity: reservation.seats.length,
@@ -280,9 +268,7 @@ export class ReservationsService {
                 },
             ],
             metadata: {
-                // Pass your internal reservation ID to Stripe
                 reservation_id: reservation.id,
-                // You can add any other useful data too
                 user_id: reservation.user.id
             },
             mode: 'payment',
@@ -291,14 +277,14 @@ export class ReservationsService {
             expires_at: expiresAtTimestamp,
 
         });
-        reservation.stripeSessionUrl = session.url;
+        reservation.stripeSessionUrl = session.url!;
         reservation.sessionId = session.id;
         this.reservationRepository.save(reservation);
         return session.url;
     }
 
     async expireReservation(reservationId: number) {
-        await this.connection.transaction(async (entityManager: EntityManager) => {
+        await this.EntityManager.transaction(async (entityManager: EntityManager) => {
             console.log(`Expiring reservation with ID: ${reservationId}`);
 
             const reservation = await entityManager.findOne(Reservation, {
@@ -314,8 +300,8 @@ export class ReservationsService {
                 await entityManager.remove(reservation.seats);
             }
 
-            reservation.status = ReservationStatus.CANCELLED; // Or any other status you want to set
-            reservation.seats = []; // Clear the in-memory array
+            reservation.status = ReservationStatus.CANCELLED; 
+            reservation.seats = []; 
 
             await entityManager.save(reservation);
         });
@@ -332,7 +318,7 @@ export class ReservationsService {
         }
         reservation.status = ReservationStatus.completed;
         reservation.latest_charge = latest_charge
-        return this.reservationRepository.save(reservation)// Or any other status you want to set
+        return this.reservationRepository.save(reservation)
     }
 
     async confirmRfund(reservationId: number) {
@@ -345,7 +331,7 @@ export class ReservationsService {
             throw new NotFoundException(`Reservation with ID ${reservationId} not found`);
         }
         reservation.status = ReservationStatus.REFUNDED;
-        return this.reservationRepository.save(reservation)// Or any other status you want to set
+        return this.reservationRepository.save(reservation)
     }
 
 

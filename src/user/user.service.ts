@@ -9,9 +9,9 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+  ) { }
 
-  async findByEmail(email: string){
+  async findByEmail(email: string) {
     return this.userRepository.findOne({ where: { email } });
   }
 
@@ -23,18 +23,33 @@ export class UserService {
     return this.userRepository.findOne({ where: { id } });
   }
 
-  async create(email: string, password?: string, googleId?: string): Promise<User> {
+  async create(email: string, password: string, name: string): Promise<User> {
     const existingUser = await this.findByEmail(email);
     if (existingUser) {
       throw new ConflictException('Email already exists');
     }
 
     const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
-    
+
+    const user = this.userRepository.create({
+      email,
+      password: hashedPassword,
+      name,
+    });
+    return this.userRepository.save(user);
+  }
+
+  async createOauthUser(email: string, googleId: string, name: string): Promise<User> {
+    const existingUser = await this.findByEmail(email);
+    if (existingUser) {
+      // this is very wrong but i don't have time to fix it right now
+      return existingUser;
+    }
+
     const user = this.userRepository.create({
       email,
       googleId,
-      password: hashedPassword
+      name,
     });
     return this.userRepository.save(user);
   }
