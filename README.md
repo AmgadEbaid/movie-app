@@ -1,98 +1,249 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🎬 Cinema Booking System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A full-featured movie theater reservation system built with **NestJS**, **TypeScript**, and **MySQL**. This enterprise-grade application handles everything from user authentication to payment processing and comprehensive reporting.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Live Demo & Features
 
-## Description
+### Core Features
+- 🔐 **Multi-Auth System**: JWT + Google OAuth2 integration
+- 🎫 **Smart Seat Management**: Real-time availability with conflict prevention
+- 💳 **Stripe Payment Integration**: Secure checkout with webhook handling
+- 📊 **Admin Dashboard**: Comprehensive analytics and reporting
+- 🎭 **Movie Management**: Full CRUD with image upload to cloud storage
+- 🏢 **Screen Management**: Multi-screen theater support
+- ⏰ **Showtime Scheduling**: Automated conflict detection
+- 🔄 **Reservation Lifecycle**: Pending → Confirmed → Refund flow
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 🛠 Tech Stack
 
-## Project setup
+### Backend
+- **Framework**: NestJS (Node.js)
+- **Language**: TypeScript
+- **Database**: MySQL with TypeORM
+- **Authentication**: Passport.js (JWT + Google OAuth)
+- **Payments**: Stripe API
+- **File Storage**: AWS S3 + Vercel Blob
+- **Validation**: Class-validator & Class-transformer
 
-```bash
-$ npm install
+### Infrastructure
+- **Containerization**: Docker + Docker Compose
+- **Database**: MySQL 8.0
+- **Environment**: Production-ready configuration
+
+## 📋 Key Architecture Highlights
+
+### 🎯 Domain-Driven Design
+```
+src/
+├── auth/           # Authentication & authorization
+├── movies/         # Movie management
+├── showtimes/      # Schedule management
+├── reservations/   # Booking system
+├── screens/        # Theater management
+├── reporting/      # Analytics & insights
+└── stripe/         # Payment processing
 ```
 
-## Compile and run the project
+### 🔒 Security Features
+- **Role-based access control** (User/Admin)
+- **JWT token authentication** with refresh mechanism
+- **Input validation** with DTO classes
+- **SQL injection prevention** via TypeORM
+- **CORS enabled** for cross-origin requests
 
-```bash
-# development
-$ npm run start
+### 💡 Business Logic Highlights
+- **Seat conflict prevention** with database-level constraints
+- **Payment session management** with 30-minute expiration
+- **Automated refund processing** with business rules
+- **Real-time seat availability** checking
+- **Revenue tracking** and performance analytics
 
-# watch mode
-$ npm run start:dev
+## 🏗 System Design
 
-# production mode
-$ npm run start:prod
+### Database Schema
+```mermaid
+erDiagram
+    User ||--o{ Reservation : makes
+    Movie ||--o{ Showtime : has
+    Screen ||--o{ Showtime : hosts
+    Showtime ||--o{ Reservation : for
+    Reservation ||--o{ Seat : contains
+    
+    User {
+        string id PK
+        string email
+        string password
+        string name
+        enum role
+        string googleId
+    }
+    
+    Movie {
+        string id PK
+        string title
+        text description
+        int duration
+        string rating
+        enum[] genres
+        string coverImageUrl
+    }
+    
+    Reservation {
+        int id PK
+        string userId FK
+        int showtimeId FK
+        decimal totalPrice
+        int numberOfSeats
+        enum status
+        string sessionId
+        string stripeSessionUrl
+    }
 ```
 
-## Run tests
+### Payment Flow
+1. **Reservation Creation** → Pending status
+2. **Stripe Checkout** → 30-minute session
+3. **Webhook Processing** → Status update
+4. **Seat Lock/Release** → Based on payment result
 
+## 🚦 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Docker & Docker Compose
+- MySQL 8.0
+
+### Quick Start
 ```bash
-# unit tests
-$ npm run test
+# Clone the repository
+git clone <repository-url>
+cd movie-app
 
-# e2e tests
-$ npm run test:e2e
+# Environment setup
+cp .env.example .env
+# Configure your environment variables
 
-# test coverage
-$ npm run test:cov
+# Start with Docker
+docker-compose up -d
+
+# Or run locally
+npm install
+npm run start:dev
 ```
 
-## Deployment
+### Environment Variables
+```env
+# Database
+HOST=localhost
+PORT=3306
+DATABASE=mydatabase
+databasename=user
+PASSWORD=password
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+# Authentication
+JWT_SECRET=your-secret-key
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-secret
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+# Payments
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Storage
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
-## Resources
 
-Check out a few resources that may come in handy when working with NestJS:
+## 💳 Payment Integration
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Stripe Webhook Handling
+```typescript
+@Post('/stripe-webhook')
+async handleStripeWebhook(@Req() request, @Res() response) {
+  const event = Stripe.webhooks.constructEvent(
+    request.rawBody,
+    signature,
+    this.endpointSecret,
+  );
 
-## Support
+  switch (event.type) {
+    case 'checkout.session.completed':
+      await this.confirmReservation(sessionData);
+      break;
+    case 'checkout.session.expired':
+      await this.expireReservation(sessionData);
+      break;
+  }
+}
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 📈 Performance Features
 
-## Stay in touch
+- **Database Indexing**: Optimized queries for high-traffic scenarios
+- **Connection Pooling**: Efficient database connection management
+- **Validation Pipeline**: Early request validation to prevent processing overhead
+- **Transaction Management**: ACID compliance for critical operations
+- **Caching Strategy**: Structured for Redis integration
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
 
-## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## 🚀 Deployment Ready
+
+### Docker Configuration
+- **Multi-stage builds** for optimized images
+- **Health checks** for service monitoring  
+- **Volume persistence** for database
+- **Environment-based configuration**
+
+### Production Considerations
+- **Error handling** with proper HTTP status codes
+- **Logging** with structured format
+- **CORS** configuration for frontend integration
+- **Rate limiting** ready for implementation
+- **Database migrations** with TypeORM
+
+## 📖 Business Rules Implemented
+
+### Reservation Logic
+- ✅ No double-booking of seats
+- ✅ 30-minute payment window
+- ✅ Refunds only before showtime (15min buffer)
+- ✅ Automatic seat release on payment failure
+
+### Admin Features
+- ✅ Movie management with image upload
+- ✅ Screen configuration and capacity
+- ✅ Showtime scheduling with conflict detection
+- ✅ Financial reporting and analytics
+- ✅ User management and role assignment
+
+## 🎯 Technical Decisions & Rationale
+
+### Why NestJS?
+- **Enterprise-grade architecture** with dependency injection
+- **Built-in validation** and transformation pipes
+- **Decorator-based approach** for clean, readable code
+- **Excellent TypeScript support** with strong typing
+
+### Why TypeORM?
+- **Database abstraction** with multiple DB support
+- **Migration management** for schema evolution
+- **Relationship handling** with lazy loading
+- **Query builder** for complex operations
+
+## 🤝 Contributing
+
+This project demonstrates:
+- **Clean Architecture** principles
+- **SOLID** design patterns
+- **Test-driven development** approach
+- **API-first** design methodology
+- **Production-ready** code quality
+
+
+
+---
+
+*Built with ❤️ using modern technologies and best practices*
